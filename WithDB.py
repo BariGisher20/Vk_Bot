@@ -54,11 +54,13 @@ def find_users_match():
             info['sex'] = 2
         elif info.get('sex') == 2:
             info['sex'] = 1
+        if info.get('city').get('id') == 1:
+            info['city'] = 1
         params_search = {
             'access_token': my_token,
-            'city': info.get('city').get('id'),
+            'city': info['city'],
             'sex': info['sex'],
-            'relation': info.get('relation'),
+            'relation': int(info.get('relation')),
             'age_from': sql.execute((f"""
                 SELECT age_from FROM users WHERE userid = '{user_id}'""")).fetchone(),
             'age_to': sql.execute((f"""
@@ -84,7 +86,6 @@ def get_photo(list):
         }
         img = requests.get(url=url_get_match_users_photos, params=params_vk).json()
         response = img.get('response')
-        global_list = []
         users_photo = {}
         photos = []
         users_likes = []
@@ -99,9 +100,6 @@ def get_photo(list):
                     photo_info = users_photo.get('photo_info')
                     sorted_photo_info = dict(sorted(photo_info.items(), key=lambda x: x[1])[-3:])
                     users_photo.update(photo_info=sorted_photo_info)
-            # print(users_photo)
-            # global_list.append(users_photo)
-            # print(global_list)
                 yield users_photo
 
 
@@ -115,6 +113,16 @@ def send_message(user_id, message):
         })
 
 
+def info_in_message():
+    for i in get_photo(find_users_match()):
+        user_link = 'vk.com/id' + str(i.get('owner_id'))
+        photo_ids = list(i['photo_info'].keys())
+        for el in photo_ids:
+            attachments.extend((user_link, 'photo{}_{}'.format(i['owner_id'], el)))
+        for photo in attachments:
+            yield photo
+
+
 def fix_message(msg):
     msg = "'"+msg+"'"
     return msg
@@ -124,8 +132,10 @@ for event in longpool.listen():
     if event.type == VkEventType.MESSAGE_NEW and event.to_me:
         msg = event.text.lower()
         user_id = event.user_id  # тот, кому мы пишем сообщение
+        users_acts = {
+            user_id: [userAct]
+        }
         attachments = []
-        photo_ids = []
         sql.execute(f"SELECT userId FROM users WHERE userId = '{user_id}'")
         if sql.fetchone() is None:  # если записи о пользователе нет
             sql.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?, ?)", (user_id, "newUser", "0", "0", "0", "0"))
@@ -142,6 +152,7 @@ for event in longpool.listen():
             elif userAct == "getCity":
                 sql.execute(f"UPDATE users SET city = {fix_message(msg)} WHERE userId = {user_id}")  # подставляем в соотв. ячейку значение, присланное пользователем
                 sql.execute(f"UPDATE users SET act = 'getGender' WHERE userId = {user_id}")  # спрашиваем следующую инфу
+                users_acts[user_id].append(userAct)
                 db.commit()
                 send_message(user_id, "Твой пол?")
             elif userAct == "getGender":
@@ -160,26 +171,33 @@ for event in longpool.listen():
                 db.commit()
                 send_message(user_id, "Регистрация прошла успешно. Давай найдем тебе пару! ;) Напиши 'продолжить'")
             elif userAct == "full" and msg == "начать":
+                sql.execute(f"UPDATE users SET act = 'full' WHERE userId = {user_id}")
+                db.commit()
                 send_message(user_id, "Не первый раз у нас? Давай искать пару. Напиши 'продолжить'")
-        if userAct == "full" and msg == "продолжить":
-            for i in get_photo(find_users_match()):
-                user_link = 'vk.com/id' + str(i.get('owner_id'))
-                photo_ids = list(i['photo_info'].keys())
-                for el in photo_ids:
-                    attachments.extend((user_link, 'photo{}_{}'.format(i['owner_id'], el)))
-                for photo in attachments:
-                    send_message(user_id, '{}'.format(photo))
+                users_acts[user_id].append(userAct)
+            elif userAct == "full" and msg == 'продолжить':
+                sql.execute(f"UPDATE users SET act = 'sent_photo' WHERE userId = {user_id}")
+                for k in info_in_message():
+                    send_message(user_id, '{}'.format(k))
+                    db.commit()
                     attachments.clear()
                     send_message(user_id, 'Продолжить поиск?')
-                    break  # без него по три раза присылается
-                # break
-        elif msg == 'стоп':
-            print('стоп')
-            send_message(user_id, 'Ждем Вас снова!')
-            raise StopIteration
-
-            # attachments.clear()
-
+                # time.sleep(1)
+            elif userAct == "sent_photo" and msg == 'yes':
+                for k in info_in_message():
+                    # проблема в этом цикле, он ведь итерируется по нему до конца, не ожидая сообщения.
+                    # Ожидает только в случае, если в функции info_in_message() ставлю return,
+                    # но в таком случае, он просто не рассматривает тех, кто после первого идет (что логично, по фунции return)
+                    sql.execute(f"UPDATE users SET act = 'want_more' WHERE userId = {user_id}")
+                    users_acts[user_id].append(userAct)
+                    db.commit()
+                    send_message(user_id, '{}'.format(k))
+            elif userAct == "sent_photo" and msg == 'стоп':
+                sql.execute(f"UPDATE users SET act = 'dont_want_more' WHERE userId = {user_id}")
+                users_acts[user_id].append(userAct)
+                db.commit()
+                send_message(user_id, 'Ждем Вас снова!')
+                raise StopIteration
 
 
 
