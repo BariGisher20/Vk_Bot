@@ -175,24 +175,23 @@ for event in longpool.listen():
                 db.commit()
                 send_message(user_id, "Не первый раз у нас? Давай искать пару. Напиши 'продолжить'")
                 users_acts[user_id].append(userAct)
-            elif userAct == "full" and msg == 'продолжить':
+            elif userAct == "full" and msg == 'продолжить' or 'начать':
                 sql.execute(f"UPDATE users SET act = 'sent_photo' WHERE userId = {user_id}")
                 for k in info_in_message():
+                    # проблема в этом цикле, он ведь итерируется по нему до конца, не ожидая сообщения.
+                    # Ожидает только в случае, если в функции info_in_message() ставлю return,
+                    # но в таком случае, он просто не рассматривает тех, кто после первого идет (что логично, по фунции return)
                     send_message(user_id, '{}'.format(k))
                     db.commit()
                     attachments.clear()
                     send_message(user_id, 'Продолжить поиск?')
                 # time.sleep(1)
-            elif userAct == "sent_photo" and msg == 'yes':
-                for k in info_in_message():
-                    # проблема в этом цикле, он ведь итерируется по нему до конца, не ожидая сообщения.
-                    # Ожидает только в случае, если в функции info_in_message() ставлю return,
-                    # но в таком случае, он просто не рассматривает тех, кто после первого идет (что логично, по фунции return)
-                    sql.execute(f"UPDATE users SET act = 'want_more' WHERE userId = {user_id}")
-                    users_acts[user_id].append(userAct)
-                    db.commit()
-                    send_message(user_id, '{}'.format(k))
-            elif userAct == "sent_photo" and msg == 'стоп':
+            # elif userAct == "sent_photo" and msg == 'да':
+            #     sql.execute(f"UPDATE users SET act = 'want_more' WHERE userId = {user_id}")
+            #     users_acts[user_id].append(userAct)
+            #     db.commit()
+            #     send_message(user_id, '{}'.format(info_in_message()))
+            elif userAct == "full" and msg == 'стоп':
                 sql.execute(f"UPDATE users SET act = 'dont_want_more' WHERE userId = {user_id}")
                 users_acts[user_id].append(userAct)
                 db.commit()
