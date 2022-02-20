@@ -185,7 +185,6 @@ for event in longpool.listen():
                     db.commit()
                     attachments.clear()
                     send_message(user_id, 'Продолжить поиск?')
-                # time.sleep(1)
             # elif userAct == "sent_photo" and msg == 'да':
             #     sql.execute(f"UPDATE users SET act = 'want_more' WHERE userId = {user_id}")
             #     users_acts[user_id].append(userAct)
