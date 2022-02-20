@@ -25,7 +25,7 @@ sql = db.cursor()
 sql.execute("""CREATE TABLE IF NOT EXISTS users (
     userId BIGINT,
     act TEXT,
-    city INT,
+    home_town INT,
     gender INT,
     age_from INT,
     age_to INT
@@ -39,7 +39,7 @@ def get_info(user_id):
     params_match_to = {
         'access_token': my_token,
         'user_ids': user_id,
-        'fields': 'sex, city, relation',
+        'fields': 'sex, home_town, relation',
         'v':  '5.81'
     }
     res_my_info = requests.get(url=url_match_to, params=params_match_to)
@@ -54,18 +54,20 @@ def find_users_match():
             info['sex'] = 2
         elif info.get('sex') == 2:
             info['sex'] = 1
-        if info.get('city').get('id') == 1:
-            info['city'] = 1
+        if info.get('home_town') == '':
+            info['home_town'] = list(sql.execute(f"""SELECT home_town FROM users WHERE userid = '{user_id}'""").fetchone())[0]
+        else:
+            info['home_town'] = info.get('home_town')
         params_search = {
             'access_token': my_token,
-            'city': info['city'],
+            'home_town': str(info['home_town']),
             'sex': info['sex'],
             'relation': int(info.get('relation')),
-            'age_from': sql.execute((f"""
-                SELECT age_from FROM users WHERE userid = '{user_id}'""")).fetchone(),
-            'age_to': sql.execute((f"""
-                SELECT age_to FROM users WHERE userid = '{user_id}'""")).fetchone(),
-            'fields': 'sex, city, relation',
+            'age_from': list(sql.execute((f"""
+                SELECT age_from FROM users WHERE userid = '{user_id}'""")).fetchone())[0],
+            'age_to': (sql.execute((f"""
+                SELECT age_to FROM users WHERE userid = '{user_id}'""")).fetchone())[0],
+            'fields': 'sex, home_town, relation',
             'v':  '5.81'
         }
         res_search = requests.get(url=url_search, params=params_search)
@@ -146,11 +148,11 @@ for event in longpool.listen():
             if userAct == "newUser" and msg == "начать":
                 send_message(user_id, "Ой, кажется, ты не зарегистрирован! Отправь 'рег' для регистрации.")
             elif userAct == "newUser" and msg == "рег":
-                sql.execute(f"UPDATE users SET act = 'getCity' WHERE userId = {user_id}")
+                sql.execute(f"UPDATE users SET act = 'getHome_town' WHERE userId = {user_id}")
                 db.commit()
                 send_message(user_id, "Не хватает информации о городе! В каком городе проведем поиск?")
-            elif userAct == "getCity":
-                sql.execute(f"UPDATE users SET city = {fix_message(msg)} WHERE userId = {user_id}")  # подставляем в соотв. ячейку значение, присланное пользователем
+            elif userAct == "getHome_town":
+                sql.execute(f"UPDATE users SET home_town = {fix_message(msg)} WHERE userId = {user_id}")  # подставляем в соотв. ячейку значение, присланное пользователем
                 sql.execute(f"UPDATE users SET act = 'getGender' WHERE userId = {user_id}")  # спрашиваем следующую инфу
                 users_acts[user_id].append(userAct)
                 db.commit()
