@@ -191,7 +191,7 @@ for event in longpool.listen():
             #     db.commit()
             #     send_message(user_id, '{}'.format(info_in_message()))
             elif userAct == "full" and msg == 'стоп':
-                sql.execute(f"UPDATE users SET act = 'dont_want_more' WHERE userId = {user_id}")
+                sql.execute(f"UPDATE users SET act = 'stop' WHERE userId = {user_id}")
                 users_acts[user_id].append(userAct)
                 db.commit()
                 send_message(user_id, 'Ждем Вас снова!')
